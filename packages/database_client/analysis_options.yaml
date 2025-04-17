@@ -1,0 +1,4 @@
+analyzer:
+  errors:
+    require_trailing_commas: ignore
+include: package:very_good_analysis/analysis_options.6.0.0.yaml

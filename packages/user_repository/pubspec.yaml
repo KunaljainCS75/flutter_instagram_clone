@@ -1,0 +1,26 @@
+name: user_repository
+description: A Very Good Project created by Very Good CLI.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ^3.4.0
+
+dependencies:
+  authentication_client:
+    path: ../authentication_client/authentication_client
+  database_client:
+    path: ../database_client
+  insta_blocks:
+    path: ../insta_blocks
+  powersync_repository:
+    path: ../powersync_repository
+  rxdart: 
+  shared:
+    path: ../shared
+  supabase_flutter: ^2.8.3
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  test: ^1.25.2
+  very_good_analysis: ^6.0.0

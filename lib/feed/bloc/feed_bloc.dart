@@ -1,0 +1,333 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:isolate';
+import 'dart:math';
+import 'package:app_ui/app_ui.dart';
+import 'package:bloc/bloc.dart';
+import 'package:collection/collection.dart';
+import 'package:equatable/equatable.dart';
+import 'package:firebase_remote_config_repository/firebase_remote_config_repository.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_instagram_clone/app/view/app.dart';
+import 'package:insta_blocks/insta_blocks.dart';
+import 'package:posts_repository/posts_repository.dart';
+import 'package:shared/shared.dart';
+import 'package:user_repository/user_repository.dart';
+
+part 'feed_bloc_mixin.dart';
+part 'feed_event.dart';
+part 'feed_state.dart';
+
+class FeedBloc extends Bloc<FeedEvent, FeedState> with FeedBlocMixin {
+  FeedBloc ({
+    required PostsRepository postsRepository,
+    required FirebaseRemoteConfigRepository firebaseRemoteConfigRepository,
+  }) : _postsRepository = postsRepository,
+        _firebaseRemoteConfigRepository = firebaseRemoteConfigRepository,
+   super(const FeedState.initial()) {
+    on<FeedPageRequested>(_onFeedPageRequested);
+    on<FeedReelsPageRequested>(
+      _onFeedReelsPageRequested,
+      // transformer: sequential(),
+    );
+    on<FeedRefreshRequested>(
+      _onFeedRefreshRequested,
+      // below LOC from stream_transformers.dart
+      // transformer: throttleDroppable(duration: 550.ms),
+    );
+    on<FeedReelsRefreshRequested>(
+      _onFeedReelsRefreshRequested,
+      // transformer: throttleDroppable(duration: 550.ms),
+    );
+    on<FeedRecommendedPostsPageRequested>(
+      _onFeedRecommendedPostsPageRequested,
+      // transformer: sequential(),
+      // transformer: throttleDroppable()
+    );
+    on<FeedPostCreateRequested>(_onFeedPostCreateRequested);
+    on<FeedUpdateRequested>(_onFeedUpdateRequested);
+  }
+
+  // @override
+  // PostsRepository get postsRepository => _postsRepository;
+
+  @override
+  FirebaseRemoteConfigRepository get firebaseRemoteConfigRepository =>
+      _firebaseRemoteConfigRepository;
+
+  final PostsRepository _postsRepository;
+  final FirebaseRemoteConfigRepository _firebaseRemoteConfigRepository;
+
+  @override
+  PostsRepository get postsRepository => _postsRepository;
+
+  static const _feedPageLimit = 10;
+
+  Future<void> _onFeedPageRequested(
+    FeedPageRequested event,
+    Emitter<FeedState> emit,
+  ) async {
+    emit(state.loading());
+    try {
+      final currentPage = event.page ?? state.feed.feedPage.page;
+      final (:newPage, :hasMore, :blocks) =
+          await fetchFeedPage(page: currentPage);
+
+  
+      // if (!hasMore) add(const FeedRecommendedPostsPageRequested());
+      // final posts = await _postsRepository.getPage(
+      //   offset: currentPage * _feedPageLimit, 
+      //   limit: _feedPageLimit
+      // );
+
+      // getting all post likers of feed page one by one returned
+      // final postLikersFutures = posts.map(
+      //   (post) => _postsRepository.getPostLikersInFollowings(postId: post.id)
+      // );
+
+      // final postLikers = await Future.wait(postLikersFutures);
+
+      // final newPage = currentPage + 1;
+      // final hasMore = posts.length >= _feedPageLimit;
+      
+      // final blocks = List<InstaBlock>.generate(posts.length, (index) {
+      //   final likersInFollowings = postLikers[index];
+      //   final post = posts[index].toPostLargeBlock(likersInFollowings: likersInFollowings);
+      //   return post;
+      // });
+
+      final feed = state.feed.copyWith(
+        feedPage: state.feed.feedPage.copyWith(
+          page: newPage,
+          hasMore: hasMore,
+          blocks: [...state.feed.feedPage.blocks, ...blocks],
+          totalBlocks: state.feed.feedPage.totalBlocks + blocks.length,
+        ),
+      );
+      emit(state.populated(feed: feed));
+      if (!hasMore) add(const FeedRecommendedPostsPageRequested());
+    } catch (error, stackTrace) {
+      addError(error, stackTrace);
+      emit(state.failure());
+    }
+  }
+
+  Future<void> _onFeedReelsPageRequested(
+    FeedReelsPageRequested event,
+    Emitter<FeedState> emit,
+  ) async {
+    emit(state.loading());
+    try {
+      final currentPage = event.page ?? state.feed.reelsPage.page;
+      final (:newPage, :hasMore, :blocks) = await fetchFeedPage(
+        page: currentPage,
+        withSponsoredBlocks: false,
+        mapper: postsToReelBlockMapper,
+      );
+
+      final feed = state.feed.copyWith(
+        reelsPage: state.feed.reelsPage.copyWith(
+          page: newPage,
+          hasMore: hasMore,
+          blocks: [...state.feed.reelsPage.blocks, ...blocks],
+          totalBlocks: state.feed.reelsPage.totalBlocks + blocks.length,
+        ),
+      );
+      emit(state.populated(feed: feed));
+    } catch (error, stackTrace) {
+      addError(error, stackTrace);
+      emit(state.failure());
+    }
+  }
+
+  Future<void> _onFeedReelsRefreshRequested(
+    FeedReelsRefreshRequested event,
+    Emitter<FeedState> emit,
+  ) async {
+    emit(state.loading());
+    try {
+      final (:newPage, :hasMore, :blocks) = await fetchFeedPage(
+        withSponsoredBlocks: false,
+        mapper: postsToReelBlockMapper,
+      );
+
+      final feed = state.feed.copyWith(
+        reelsPage: ReelsPage(
+          page: newPage,
+          hasMore: hasMore,
+          blocks: blocks,
+          totalBlocks: blocks.length,
+        ),
+      );
+      emit(state.populated(feed: feed));
+    } catch (error, stackTrace) {
+      addError(error, stackTrace);
+      emit(state.failure());
+    }
+  }
+
+  Future<void> _onFeedRefreshRequested(
+    FeedRefreshRequested event,
+    Emitter<FeedState> emit,
+  ) async {
+    logI("refresh requested");
+    emit(state.loading());
+    try {
+      final (:newPage, :hasMore, :blocks) = await fetchFeedPage();
+      final feed = state.feed.copyWith(
+        feedPage: FeedPage(
+          page: newPage,
+          blocks: blocks,
+          hasMore: hasMore,
+          totalBlocks: blocks.length,
+        ),
+      );
+
+      emit(state.populated(feed: feed));
+      if (!hasMore) add(const FeedRecommendedPostsPageRequested());
+    } catch (error, stackTrace) {
+      addError(error, stackTrace);
+      emit(state.failure());
+    }
+  }
+
+  Future<void> _onFeedRecommendedPostsPageRequested(
+    FeedRecommendedPostsPageRequested event,
+    Emitter<FeedState> emit,
+  ) async {
+    emit(state.loading());
+    try {
+      final recommendedBlocks = <InstaBlock>[
+        ...PostsRepository.recommendedPosts..shuffle(),
+      ];
+      final blocks = await insertSponsoredBlocks(
+        hasMore: true,
+        blocks: recommendedBlocks,
+      );
+
+      final feed = state.feed.copyWith(
+        feedPage: state.feed.feedPage.copyWith(
+          blocks: [...state.feed.feedPage.blocks, ...blocks],
+          totalBlocks: state.feed.feedPage.totalBlocks + blocks.length,
+        ),
+      );
+
+      emit(state.populated(feed: feed));
+    } catch (error, stackTrace) {
+      addError(error, stackTrace);
+      emit(state.failure());
+    }
+  }
+
+  Future<void> _onFeedPostCreateRequested(
+    FeedPostCreateRequested event,
+    Emitter<FeedState> emit,
+  ) async {
+    emit(state.loading());
+    try {
+      final newPost = await _postsRepository.createPost(
+        id: event.postId,
+        caption: event.caption,
+        media: json.encode(event.media),
+      );
+      if (newPost != null) {
+        add(
+          FeedUpdateRequested(
+            update:
+                FeedPageUpdate(newPost: newPost, type: PageUpdateType.create),
+          ),
+        );
+      }
+      emit(state.populated());
+      toggleLoadingIndeterminate(enable: false);
+      openSnackBar(
+        const SnackbarMessage.success(
+          title: 'Successfully created post!',
+        ),
+      );
+    } catch (error, stackTrace) {
+      addError(error, stackTrace);
+      emit(state.failure());
+    }
+  }
+
+  Future<void> _onFeedUpdateRequested(
+    FeedUpdateRequested event,
+    Emitter<FeedState> emit,
+  ) async {
+    emit(state.loading());
+    final update = event.update;
+    final oldFeed = state.feed;
+
+    try {
+      final feedBlock = oldFeed.feedPage.blocks.findPostBlock(
+        test: (block) => block.id == update.newPost.id,
+      );
+      final reel = oldFeed.reelsPage.blocks.findPostBlock(
+        test: (block) =>
+            block.id == update.newPost.id &&
+            block.type == PostReelBlock.identifier,
+      );
+      if (feedBlock == null && reel == null && !update.isCreate) {
+        return emit(state.populated());
+      }
+      if (feedBlock == null && reel == null && !update.isCreate) {
+        return emit(state.populated());
+      }
+      final updatedFeedBlocks = oldFeed.updateFeedPage(update: update);
+      List<InstaBlock>? updatedReelsBlocks;
+      if (update.canUpdateReel) {
+        updatedReelsBlocks = oldFeed.updateReelsPage(update: update);
+      }
+
+      final feed = oldFeed.copyWith(
+        feedPage: oldFeed.feedPage.copyWith(
+          blocks: updatedFeedBlocks,
+          totalBlocks: updatedFeedBlocks.length,
+        ),
+        reelsPage: oldFeed.reelsPage.copyWith(
+          blocks: updatedReelsBlocks,
+          totalBlocks: updatedReelsBlocks?.length,
+        ),
+      );
+
+      emit(state.populated(feed: feed));
+    } catch (error, stackTrace) {
+      addError(error, stackTrace);
+      emit(state.failure());
+    }
+  }
+
+}
+
+  // extension PostX on Post {
+  //   /// Converts [Post] instance into [PostLargeBlock] instance.
+  //   PostLargeBlock get toPostLargeBlock =>
+  //     PostLargeBlock(
+  //       id: id, 
+  //       author: PostAuthor.confirmed(
+  //         id: author.id,
+  //         avatarUrl: author.avatarUrl,
+  //         username: author.displayUsername
+  //       ), 
+  //       createdAt: createdAt, 
+  //       media: media, 
+  //       caption: caption,
+  //       action: NavigateToPostAuthorProfileAction(authorId: author.id)
+  //     );
+
+  //   /// Converts [Post] instance into [PostSmallBlock] instance.
+  //   PostSmallBlock get toPostSmallBlock =>
+  //     PostSmallBlock(
+  //       id: id, 
+  //       author: PostAuthor.confirmed(
+  //         id: author.id,
+  //         avatarUrl: author.avatarUrl,
+  //         username: author.displayUsername
+  //       ), 
+  //       createdAt: createdAt, 
+  //       media: media, 
+  //       caption: caption,
+  //       action: NavigateToPostAuthorProfileAction(authorId: author.id)
+  //     );
+  // }

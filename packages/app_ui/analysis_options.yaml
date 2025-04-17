@@ -1,0 +1,5 @@
+analyzer:
+  errors:
+    eol_at_end_of_file: ignore
+    require_trailing_commas: ignore
+include: package:very_good_analysis/analysis_options.6.0.0.yaml

@@ -1,0 +1,26 @@
+name: powersync_repository
+description: A Very Good Project created by Very Good CLI.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ^3.4.0
+  flutter: ^3.22.0
+
+dependencies:
+  env:
+    path: ../env
+  flutter:
+    sdk: flutter
+  path: ">=1.8.3 <=1.9.0"
+  path_provider:
+  powersync: ^1.11.0
+  shared:
+    path: ../shared
+  supabase_flutter: ^2.8.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.4
+  very_good_analysis: ^6.0.0

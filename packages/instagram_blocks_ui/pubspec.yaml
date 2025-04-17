@@ -1,0 +1,46 @@
+name: instagram_blocks_ui
+description: A Very Good Project created by Very Good CLI.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ^3.4.0
+  flutter: ^3.22.0
+
+dependencies:
+  app_ui:
+    path: ../app_ui
+  avatar_stack: ^3.0.0
+  cached_memory_image: ^1.5.0
+  cached_network_image: ^3.4.1
+  carousel_slider: ^5.0.0
+  flutter:
+    sdk: flutter
+  flutter_animate: ^4.5.2
+  flutter_blurhash: ^0.8.2
+  image_picker_plus:
+    path: ../image_picker_plus
+  insta_blocks:
+    path: ../insta_blocks
+  inview_notifier_list: ^3.0.0
+  marquee: ^2.2.3
+  octo_image: ^2.1.0
+  powersync_repository:
+    path: ../powersync_repository
+  scrollable_positioned_list: ^0.3.8
+  shared:
+    path: ../shared
+  shimmer: ^3.0.0
+  smooth_video_progress: ^0.0.4
+  sprung: ^3.0.1
+  url_launcher: ^6.3.1
+  user_repository:
+    path: ../user_repository
+  video_player: ^2.9.2
+  visibility_detector: ^0.4.0+2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.4
+  very_good_analysis: ^6.0.0

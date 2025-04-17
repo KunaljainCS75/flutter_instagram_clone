@@ -1,0 +1,23 @@
+name: chats_repository
+description: A repository that manages the chats data data flow.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.3.1 <4.0.0"
+  flutter: ^3.22.0
+
+dependencies:
+  database_client:
+    path: ../database_client
+  flutter:
+    sdk: flutter
+  shared:
+    path: ../shared
+  user_repository:
+    path: ../user_repository
+
+dev_dependencies:
+  mocktail: ^1.0.0
+  test: ^1.19.2
+  very_good_analysis: ^6.0.0
